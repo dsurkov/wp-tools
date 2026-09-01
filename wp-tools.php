@@ -29,6 +29,57 @@ function wt_log( string $msg ): void {
 function wt_err( string $msg ): void {
     fwrite( STDERR, $msg . "\n" );
 }
+/** Seconds elapsed since $start, formatted. */
+function wt_elapsed( float $start ): string {
+    return number_format( microtime( true ) - $start, 1 ) . 's';
+}
+
+/** In-place progress line (overwrites via \r). Call with $done=true to clear it. */
+function wt_progress( string $label, int $i, int $total, float $start, bool $done = false ): void {
+    if ( $done ) {
+        echo "\r\033[K";
+        flush();
+        return;
+    }
+    $pct = $total > 0 ? (int) round( $i / $total * 100 ) : 100;
+    $el  = number_format( microtime( true ) - $start, 1 );
+    echo "\r\033[K{$label} {$i}/{$total} ({$pct}%) — {$el}";
+    flush();
+}
+
+/** Count files under $root, optionally filtered by $include(rel)->bool. */
+function wt_count_tree( string $root, $include = null ): int {
+    $n    = 0;
+    $files = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator( $root, FilesystemIterator::SKIP_DOTS ),
+        RecursiveIteratorIterator::LEAVES_ONLY
+    );
+    foreach ( $files as $file ) {
+        if ( $file->isDir() ) {
+            continue;
+        }
+        $rel = substr( $file->getRealPath(), strlen( $root ) + 1 );
+        if ( $include === null || $include( $rel ) ) {
+            $n++;
+        }
+    }
+    return $n;
+}
+
+/** Should a site file (relative path under the WP root) be backed up? */
+function wt_include_backup_file( string $rel ): bool {
+    $first = strtok( $rel, '/' );
+    if ( $first === '_backups' || $first === '_packages' ) {
+        return false;
+    }
+    $parent = dirname( $rel );
+    foreach ( explode( '/', $parent ) as $seg ) {
+        if ( $seg !== '' && $seg !== '.' && $seg[0] === '.' ) {
+            return false;
+        }
+    }
+    return true;
+}
 
 /** Walk up from cwd to locate the WordPress root; '' when not found. */
 function wt_find_wp_root(): string {
@@ -247,6 +298,11 @@ function tool_packager( array $args ): int {
             RecursiveIteratorIterator::LEAVES_ONLY
         );
 
+        wt_log( "  Packing {$slug}…" );
+        $p_start = microtime( true );
+        $p_total = wt_count_tree( $entry['path'] );
+        $p_step  = max( 1, (int) ceil( $p_total / 100 ) );
+
         $count = 0;
         foreach ( $files as $file ) {
             if ( $file->isDir() ) {
@@ -256,10 +312,14 @@ function tool_packager( array $args ): int {
             $relative_path = $dir_basename . '/' . substr( $file_path, strlen( $entry['path'] ) + 1 );
             $zip->addFile( $file_path, $relative_path );
             $count++;
+            if ( $count % $p_step === 0 ) {
+                wt_progress( '  files', $count, $p_total, $p_start );
+            }
         }
+        wt_progress( '  files', 0, 0, $p_start, true );
         $zip->close();
 
-        wt_log( "[+] [{$type}] {$slug} ({$entry['version']}, {$count} files)" );
+        wt_log( "[+] [{$type}] {$slug} ({$entry['version']}, {$count} files, " . wt_elapsed( $p_start ) . ")" );
         wt_log( "      -> " . $base_url . '/' . $archive_name );
         $packed++;
     }
@@ -289,7 +349,7 @@ function backupper_usage(): void {
 }
 
 /** Stream a SQL dump of the WP database into $path. Returns false on error. */
-function backupper_db_dump( $wpdb, string $path ): bool {
+function backupper_db_dump( $wpdb, string $path, float $start ): bool {
     $fh = fopen( $path, 'w' );
     if ( ! $fh ) {
         return false;
@@ -300,7 +360,11 @@ function backupper_db_dump( $wpdb, string $path ): bool {
     fwrite( $fh, "SET FOREIGN_KEY_CHECKS = 0;\n\n" );
 
     $tables = $wpdb->get_col( 'SHOW TABLES' );
+    $total  = count( $tables );
+    $t      = 0;
     foreach ( $tables as $table ) {
+        $t++;
+        wt_progress( '[db]', $t, $total, $start );
         $create = $wpdb->get_row( "SHOW CREATE TABLE `{$table}`", ARRAY_N );
         if ( ! $create ) {
             continue;
@@ -404,15 +468,20 @@ function tool_backupper( array $args ): int {
     $archive_file = $export_dir . '/' . $archive_name;
     $db_sql       = $export_dir . '/db-' . $stamp . '.sql';
 
+    $start = microtime( true );
+
     wt_log( '' );
     wt_log( "=== BACKUP ({$folder_name}/) ===" );
     wt_log( '' );
 
-    if ( ! backupper_db_dump( $wpdb, $db_sql ) ) {
+    wt_log( '[1/2] Database dump…' );
+    if ( ! backupper_db_dump( $wpdb, $db_sql, $start ) ) {
+        wt_progress( '[db]', 0, 0, $start, true );
         wt_err( "Error: cannot write database dump '{$db_sql}'." );
         return 1;
     }
-    wt_log( '[+] [db] ' . basename( $db_sql ) );
+    wt_progress( '[db]', 0, 0, $start, true );
+    wt_log( '[+] [db] ' . basename( $db_sql ) . ' — ' . wt_elapsed( $start ) );
 
     $zip = new ZipArchive();
     if ( $zip->open( $archive_file, ZipArchive::CREATE | ZipArchive::OVERWRITE ) !== true ) {
@@ -422,8 +491,10 @@ function tool_backupper( array $args ): int {
     }
     $zip->addFile( $db_sql, basename( $db_sql ) );
 
-    /* Site files: exclude export dirs and dot-directories (.git, .svn). */
-    $count = 0;
+    wt_log( '[2/2] Adding site files…' );
+    $total_files = wt_count_tree( $wp_root, 'wt_include_backup_file' );
+    $step        = max( 1, (int) ceil( $total_files / 100 ) );
+    $count       = 0;
     $files = new RecursiveIteratorIterator(
         new RecursiveDirectoryIterator( $wp_root, FilesystemIterator::SKIP_DOTS ),
         RecursiveIteratorIterator::LEAVES_ONLY
@@ -434,24 +505,16 @@ function tool_backupper( array $args ): int {
         }
         $file_path = $file->getRealPath();
         $rel       = substr( $file_path, strlen( $wp_root ) + 1 );
-        $first     = strtok( $rel, '/' );
-        if ( $first === $folder_name || $first === '_packages' ) {
-            continue;
-        }
-        $parent = dirname( $rel );
-        $skip   = false;
-        foreach ( explode( '/', $parent ) as $seg ) {
-            if ( $seg !== '' && $seg !== '.' && $seg[0] === '.' ) {
-                $skip = true;
-                break;
-            }
-        }
-        if ( $skip ) {
+        if ( ! wt_include_backup_file( $rel ) ) {
             continue;
         }
         $zip->addFile( $file_path, $rel );
         $count++;
+        if ( $count % $step === 0 ) {
+            wt_progress( '[files]', $count, $total_files, $start );
+        }
     }
+    wt_progress( '[files]', 0, 0, $start, true );
     $zip->close();
     @unlink( $db_sql );
 
@@ -460,7 +523,7 @@ function tool_backupper( array $args ): int {
     wt_log( '[+] ' . $archive_name . ' (' . $size . ' MB)' );
     wt_log( '      -> ' . $base_url . '/' . $archive_name );
     wt_log( '' );
-    wt_log( 'Done. Tip: remove the ' . $folder_name . '/ folder after downloading.' );
+    wt_log( 'Done in ' . wt_elapsed( $start ) . '. Tip: remove the ' . $folder_name . '/ folder after downloading.' );
 
     return 0;
 }
