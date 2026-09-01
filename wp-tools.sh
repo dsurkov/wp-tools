@@ -23,6 +23,8 @@
 
 # URL диспетчера. Переопределить: WP_TOOLS_URL=<url> source wp-tools.sh
 : "${WP_TOOLS_URL:=https://gist.githubusercontent.com/dsurkov/efafe42477aa571139401628d2fafd5a/raw/wp-tools.php}"
+# URL самого загрузчика (для wp-update). Переопределить при своём хостинге файла.
+: "${WP_TOOLS_SH_URL:=https://gist.githubusercontent.com/dsurkov/efafe42477aa571139401628d2fafd5a/raw/wp-tools.sh}"
 
 _wt_run() {
     curl -sSL "$WP_TOOLS_URL" | php -- "$@"
@@ -37,6 +39,13 @@ wp-api-context()  { _wt_run api "$@"; }
 # Короткие алиасы
 wp-api()    { _wt_run api "$@"; }
 wp-backup() { _wt_run backupper "$@"; }
+# Обновить функции: перекачать загрузчик и переопределить всё в текущей сессии
+wp-update() {
+    local sh
+    sh="$(curl -sSL "$WP_TOOLS_SH_URL")" || { echo "wp-update: не удалось загрузить загрузчик" >&2; return 1; }
+    WP_TOOLS_QUIET=1 eval "$sh"
+    echo -e "\033[1;32mWP Tools\033[0m обновлены (\033[38;5;244mwp-help\033[0m — справка)."
+}
 
 # ---------------------------------------------------------------------------
 # Таб-дополнение: показывает, что можно ввести дальше
@@ -125,6 +134,7 @@ _wt_help() {
     echo ""
     echo -e "  \033[1;37mwp-tools\033[0m                эта справка + список инструментов"
     echo -e "  \033[1;37mwp-tools list\033[0m           список инструментов"
+    echo -e "  \033[1;37mwp-update\033[0m               перекачать функции из gist (обновление)"
     echo ""
     echo -e "  Таб: \033[38;5;244mwp-<TAB>\033[0m — команды, дальше флаги/слаги"
     echo -e "  Подробнее: \033[4;34mhttps://github.com/dsurkov/wp-tools/blob/main/README.md\033[0m"
@@ -133,4 +143,7 @@ _wt_help() {
 
 wp-help() { _wt_help; }
 
-_wt_help
+# Баннер печатаем только при обычной загрузке; wp-update ставит WP_TOOLS_QUIET=1
+if [[ -z "${WP_TOOLS_QUIET:-}" ]]; then
+    _wt_help
+fi
