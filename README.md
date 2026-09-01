@@ -68,6 +68,7 @@ eval "$(curl -sSL https://gist.githubusercontent.com/dsurkov/efafe42477aa5711394
 | `wp-info`          | `wp-info`                      | `--help`                |
 | `wp-api-context`   | `api …`                        | `--help`                |
 | `wp-api`           | алиас `wp-api-context`         | —                       |
+| `wp-update`        | перекачать функции из gist     | —                       |
 
 Подсказка слагов в `wp-packager` берётся из WP-CLI (`wp plugin list` /
 `wp theme list`), если он установлен; без него — только флаги. Для
