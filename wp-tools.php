@@ -476,12 +476,12 @@ function tool_backupper( array $args ): int {
         return 1;
     }
 
+    $domain = preg_replace( '/[^A-Za-z0-9._-]/', '-', parse_url( site_url(), PHP_URL_HOST ) ?: $folder_name );
+
     $stamp        = date( 'Ymd-His' );
-    $archive_name = 'backup-' . $stamp . '.zip';
+    $archive_name = 'backup-' . $domain . '-' . $mode . '-' . $stamp . '.zip';
     $archive_file = $export_dir . '/' . $archive_name;
     $db_sql       = $export_dir . '/db-' . $stamp . '.sql';
-
-    $domain = parse_url( site_url(), PHP_URL_HOST ) ?: $folder_name;
 
     $start    = microtime( true );
     $do_db    = ( $mode === 'all' || $mode === 'db' );
