@@ -60,14 +60,14 @@ wp-tools() {
         packager|pkg)         _wt_run packager "$@" ;;
         stack|info)           _wt_run wp-info "$@" ;;
         api)                  _wt_run api "$@" ;;
-        backup|backupper)
+        backup)
             case "${1:-}" in
-                db)          _wt_run backupper db ;;
-                files)       _wt_run backupper files ;;
-                all|'')      _wt_run backupper all ;;
-                --list|-l)   _wt_run backupper --list ;;
-                --help|-h|-\?) _wt_run backupper --help ;;
-                *)           _wt_run backupper "$@" ;;
+                db)          _wt_run backup db ;;
+                files)       _wt_run backup files ;;
+                all|'')      _wt_run backup all ;;
+                --list|-l)   _wt_run backup --list ;;
+                --help|-h|-\?) _wt_run backup --help ;;
+                *)           _wt_run backup "$@" ;;
             esac
             ;;
         *) _wt_run "$cmd" "$@" ;;
@@ -96,7 +96,7 @@ _wp_tools_complete() {
         used="$used $w"
         case "$w" in
             packager|pkg)     tool="packager";;
-            backup|backupper) tool="backup";;
+            backup) tool="backup";;
             stack|info)       tool="stack";;
             api)              tool="api";;
         esac
@@ -118,7 +118,7 @@ _wp_tools_complete() {
             ;;
         backup)
             # только сразу после `backup`: db / files / all / флаги
-            if [[ "$prev" == "backup" || "$prev" == "backupper" ]]; then
+            if [[ "$prev" == "backup" ]]; then
                 COMPREPLY=( $(compgen -W "$backup_opts" -- "$cur") )
             fi
             ;;

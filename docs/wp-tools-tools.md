@@ -1,4 +1,4 @@
-# WP Tools: инструменты backupper, wp-info, api и shell-загрузчик
+# WP Tools: инструменты backup, wp-info, api и shell-загрузчик
 
 ## 1. Как это называется
 
@@ -10,7 +10,7 @@ PHP-файл-диспетчер `wp-tools.php` (подкоманды) + bash-з�
 
 ## 2. Стек
 
-- PHP **7.2+** (CLI), без зависимостей; ZipArchive — только для `packager`/`backupper`.
+- PHP **7.2+** (CLI), без зависимостей; ZipArchive — только для `packager`/`backup`.
 - WordPress API через прямой require `wp-load.php` + `wp-admin/includes/plugin.php` + `wp-includes/theme.php` (WP-CLI не нужен).
 - bash + `complete -F` (zsh — через `bashcompinit`).
 - Файлы: `wp-tools.php` (диспетчер, ~750 строк), `wp-tools.sh` (загрузчик, ~100 строк), `README.md`.
@@ -18,10 +18,10 @@ PHP-файл-диспетчер `wp-tools.php` (подкоманды) + bash-з�
 
 ## 3. Техника
 
-- Диспетчер: реестр `const WT_TOOLS = [ 'packager' => …, 'backupper' => …, 'wp-info' => …, 'api' => … ]`, каждая подкоманда — функция `tool_*( array $args ): int` с кодами выхода 0/1/2 (успех / фатальная / неизвестная команда).
+- Диспетчер: реестр `const WT_TOOLS = [ 'packager' => …, 'backup' => …, 'wp-info' => …, 'api' => … ]`, каждая подкоманда — функция `tool_*( array $args ): int` с кодами выхода 0/1/2 (успех / фатальная / неизвестная команда).
 - `wt_boot()`: подъём от `getcwd()` до `wp-load.php` (иначе `exit(1)`), require WP, возврат корня. `--help` любой подкоманды НЕ грузит WP.
 - Guard PHP 7.2 — первая исполняемая инструкция после sapi-проверки (до любого `??`).
-- **backupper**: ZIP всего корня WP в `_backups/` + дамп БД чисто-PHP: `SHOW TABLES` → `SHOW CREATE TABLE` → `SELECT *` с `esc_sql()`, INSERT-пакеты по таблицам, `SET NAMES`, `SET FOREIGN_KEY_CHECKS=0/1`; дамп пишется во временный `.sql` и кладётся в архив. Исключаются `_backups/`, `_packages/` и dot-каталоги (`.git`, `.svn`), но корневые dot-файлы (`.htaccess`) сохраняются. Режимы: `db` (только дамп), `files` (только файлы), `all` (по умолчанию, оба) — этапы выводятся как `[1/2]`/`[2/2]` с прогрессом (проценты + время, `\r`-строка).
+- **backup**: ZIP всего корня WP в `_backups/` + дамп БД чисто-PHP: `SHOW TABLES` → `SHOW CREATE TABLE` → `SELECT *` с `esc_sql()`, INSERT-пакеты по таблицам, `SET NAMES`, `SET FOREIGN_KEY_CHECKS=0/1`; дамп пишется во временный `.sql` и кладётся в архив. Исключаются `_backups/`, `_packages/` и dot-каталоги (`.git`, `.svn`), но корневые dot-файлы (`.htaccess`) сохраняются. Режимы: `db` (только дамп), `files` (только файлы), `all` (по умолчанию, оба) — этапы выводятся как `[1/2]`/`[2/2]` с прогрессом (проценты + время, `\r`-строка).
 - **wp-info**: версии WP/PHP/БД (MySQL vs MariaDB), лимиты PHP из CLI-ini или web-ini (LiteSpeed/fpm/apache2, поиск по версии PHP), статусы Debug/Cache/Cron, локаль/TZ, префикс/charset, пути; активные плагины (`get_option('active_plugins')`), активная тема + parent (child-детект через `$theme->parent()`).
 - **api**: без аргумента — локаль/время, аддоны Bookly (`stripos($plugin,'bookly')`), таблицы БД (`SHOW TABLE STATUS`, префикс срезается), кастомные REST namespaces (ручной `new WP_REST_Server()` + `do_action('rest_api_init')`, фильтр по списку ядра). С аргументом — `SHOW TABLES LIKE %mask%` → для каждой таблицы `SHOW TABLE STATUS` + `SHOW COLUMNS` с выравниванием `str_pad`, подсветкой PRI/MUL.
 - **Загрузчик**: одна функция-диспетчер `wp-tools` с подкомандами (`packager`, `stack`, `api`, `backup db|files|all`, `list`, `help`, `update`) — тонкие обёртки `curl -sSL $WP_TOOLS_URL | php -- <tool> "$@"`. `WP_TOOLS_URL` (диспетчер) и `WP_TOOLS_SH_URL` (сам загрузчик, для `wp-tools update`) переопределяются (например, `file://` для локальной разработки).

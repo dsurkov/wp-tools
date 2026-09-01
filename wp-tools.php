@@ -112,7 +112,7 @@ function wt_boot(): string {
 
 const WT_TOOLS = [
     'packager' => 'Package installed plugins & themes into ZIP archives',
-    'backupper' => 'Backup site files & database into a ZIP archive',
+    'backup' => 'Backup site files & database into a ZIP archive',
     'wp-info'   => 'Show WordPress stack & configuration info',
     'api'       => 'Show REST API context & table schemas',
 ];
@@ -333,13 +333,13 @@ function tool_packager( array $args ): int {
 }
 
 /* ---------------------------------------------------------------------------
- * Tool: backupper
+ * Tool: backup
  * ------------------------------------------------------------------------ */
 
-function backupper_usage(): void {
+function backup_usage(): void {
     wt_log( 'Usage:' );
-    wt_log( '  curl -sSL <url>/wp-tools.php | php -- backupper [db|files|all]' );
-    wt_log( '  curl -sSL <url>/wp-tools.php | php -- backupper --list' );
+    wt_log( '  curl -sSL <url>/wp-tools.php | php -- backup [db|files|all]' );
+    wt_log( '  curl -sSL <url>/wp-tools.php | php -- backup --list' );
     wt_log( '' );
     wt_log( 'Options:' );
     wt_log( '  db          Backup database only' );
@@ -353,7 +353,7 @@ function backupper_usage(): void {
 }
 
 /** Stream a SQL dump of the WP database into $path. Returns false on error. */
-function backupper_db_dump( $wpdb, string $path, float $start ): bool {
+function backup_db_dump( $wpdb, string $path, float $start ): bool {
     $fh = fopen( $path, 'w' );
     if ( ! $fh ) {
         return false;
@@ -403,7 +403,7 @@ function backupper_db_dump( $wpdb, string $path, float $start ): bool {
     return true;
 }
 
-function tool_backupper( array $args ): int {
+function tool_backup( array $args ): int {
     global $wpdb;
 
     $list = false;
@@ -414,7 +414,7 @@ function tool_backupper( array $args ): int {
             case '--help':
             case '-h':
             case '-?':
-                backupper_usage();
+                backup_usage();
                 return 0;
             case '--list':
             case '-l':
@@ -431,7 +431,7 @@ function tool_backupper( array $args ): int {
                 break;
             default:
                 wt_err( "Unknown option: {$arg}" );
-                backupper_usage();
+                backup_usage();
                 return 2;
         }
     }
@@ -497,7 +497,7 @@ function tool_backupper( array $args ): int {
     if ( $do_db ) {
         $stage++;
         wt_log( "[{$stage}/{$stages}] Database dump…" );
-        if ( ! backupper_db_dump( $wpdb, $db_sql, $start ) ) {
+        if ( ! backup_db_dump( $wpdb, $db_sql, $start ) ) {
             wt_progress( '[db]', 0, 0, $start, true );
             wt_err( "Error: cannot write database dump '{$db_sql}'." );
             return 1;
@@ -832,8 +832,8 @@ if ( $cmd === 'version' || $cmd === '--version' || $cmd === '-V' ) {
 if ( $cmd === 'packager' || $cmd === 'pkg' ) {
     exit( tool_packager( $rest ) );
 }
-if ( $cmd === 'backupper' || $cmd === 'backup' ) {
-    exit( tool_backupper( $rest ) );
+if ( $cmd === 'backup' ) {
+    exit( tool_backup( $rest ) );
 }
 if ( $cmd === 'wp-info' || $cmd === 'info' || $cmd === 'stack' ) {
     exit( tool_wp_info( $rest ) );
