@@ -1,29 +1,31 @@
 #!/usr/bin/env bash
-# wp-tools.sh — загрузчик функций WP Tools в текущую shell-сессию.
+# wp-tools.sh — загрузчик WP Tools в текущую shell-сессию.
 #
-# Один и тот же диспетчер wp-tools.php исполняется через `curl | php`:
-# функции здесь — тонкие обёртки, вся логика живёт в PHP.
+# Одна функция-диспетчер wp-tools с подкомандами; вся логика живёт
+# в PHP (wp-tools.php), функции здесь — тонкие обёртки curl | php.
 #
 #   eval "$(curl -sSL <url>/wp-tools.sh)"                          # разово
 #   echo 'eval "$(curl -sSL <url>/wp-tools.sh)"' >> ~/.bashrc      # постоянно
 #
-# (source <(...) на некоторых сборках bash не читает пайп — eval надёжнее)
-#
-# После загрузки доступны функции (имена wp-* подставляются табом,
-# как обычные команды):
-#
-#   wp-tools            — диспетчер: help / list / <tool> [args]
-#   wp-packager         — паковка плагинов и тем в ZIP (таб: флаги + слаги)
-#   wp-backup           — бэкап файлов и БД (таб: --list, --help)
-#   wp-info             — стек и конфиг WordPress (таб: --help)
-#   wp-api-context      — контекст REST API, схемы таблиц (алиас wp-api)
+# Подкоманды (wp-tools <TAB> подсказывает следующий уровень):
+#   wp-tools packager <слаг>   упаковать плагин/тему в ZIP
+#   wp-tools packager --all    упаковать все плагины и темы
+#   wp-tools stack             стек и конфиг WordPress
+#   wp-tools api [маска]       контекст API / схема таблиц
+#   wp-tools backup            бэкап файлов + БД (по умолчанию)
+#   wp-tools backup db|files   только дамп БД / только файлы сайта
+#   wp-tools backup --list     список существующих бэкапов
+#   wp-tools list              список инструментов
+#   wp-tools help              эта справка
+#   wp-tools update            перекачать функции (обновление)
 #
 # Вызывать — из корня сайта или любой поддиректории (корень WP ищется
-# подъёмом вверх). Для подсказки слагов в wp-packager нужен WP-CLI (`wp`).
+# подъёмом вверх). Для подсказки слагов в packager нужен WP-CLI (`wp`).
 
 # URL диспетчера. Переопределить: WP_TOOLS_URL=<url> source wp-tools.sh
 : "${WP_TOOLS_URL:=https://gist.githubusercontent.com/dsurkov/efafe42477aa571139401628d2fafd5a/raw/wp-tools.php}"
-# URL самого загрузчика (для wp-update). Переопределить при своём хостинге файла.
+
+# URL самого загрузчика (для wp-tools update).
 : "${WP_TOOLS_SH_URL:=https://gist.githubusercontent.com/dsurkov/efafe42477aa571139401628d2fafd5a/raw/wp-tools.sh}"
 
 _wt_run() {
@@ -31,79 +33,91 @@ _wt_run() {
 }
 
 wp-tools() {
-    if [[ "$1" == "update" ]]; then
-        # перекачать загрузчик и переопределить функции в текущей сессии
-        local sh
-        sh="$(curl -sSL "$WP_TOOLS_SH_URL")" || { echo "wp-tools update: не удалось загрузить загрузчик" >&2; return 1; }
-        WP_TOOLS_QUIET=1 eval "$sh"
-        echo -e "\033[1;32mWP Tools\033[0m обновлены (\033[38;5;244mwp-help\033[0m — справка)."
-        return 0
-    fi
-    _wt_run "$@"
-}
-wp-packager()     { _wt_run packager "$@"; }
-wp-backup()       { _wt_run backupper "$@"; }
-wp-info()         { _wt_run wp-info "$@"; }
-wp-api-context()  { _wt_run api "$@"; }
+    local cmd="${1:-}"
+    if [[ -n "$1" ]]; then shift; fi
 
-# Короткий алиас
-wp-api() { _wt_run api "$@"; }
+    case "$cmd" in
+        update)
+            # перекачать загрузчик и переопределить функции в текущей сессии
+            local sh
+            sh="$(curl -sSL "$WP_TOOLS_SH_URL")" || { echo "wp-tools update: не удалось загрузить загрузчик" >&2; return 1; }
+            WP_TOOLS_QUIET=1 eval "$sh"
+            echo -e "\033[1;32mWP Tools\033[0m обновлены (\033[38;5;244mwp-tools help\033[0m — справка)."
+            ;;
+        list|--list|-l)       _wt_run list ;;
+        help|--help|-h|-\?|'') _wt_help ;;
+        packager|pkg)         _wt_run packager "$@" ;;
+        stack|info)           _wt_run wp-info "$@" ;;
+        api)                  _wt_run api "$@" ;;
+        backup|backupper)
+            case "${1:-}" in
+                db)          _wt_run backupper db ;;
+                files)       _wt_run backupper files ;;
+                all|'')      _wt_run backupper all ;;
+                --list|-l)   _wt_run backupper --list ;;
+                --help|-h|-\?) _wt_run backupper --help ;;
+                *)           _wt_run backupper "$@" ;;
+            esac
+            ;;
+        *) _wt_run "$cmd" "$@" ;;
+    esac
+}
 
 # ---------------------------------------------------------------------------
-# Таб-дополнение: показывает, что можно ввести дальше
+# Таб-дополнение: подсказывает следующий уровень вложенности
 # ---------------------------------------------------------------------------
 
 _wp_tools_complete() {
     local cur prev tool
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    tool="${COMP_WORDS[0]}"
+    tool=""
+    COMPREPLY=()
 
-    local tools="packager backupper wp-info api list help update"
+    local level1="packager stack api backup list help update --list -l --help -h -?"
     local packager_opts="--list -l --all -a --help -h -?"
-    local backupper_opts="--list -l --help -h -?"
+    local backup_opts="db files all --list -l --help -h -?"
     local info_opts="--help -h -?"
     local w used="" slugs="" s
 
-    # аргументы, уже набранные в строке (чтобы не предлагать их повторно)
+    # в какой подкоманде мы находимся + уже набранные слова
     for w in "${COMP_WORDS[@]:1}"; do
         used="$used $w"
+        case "$w" in
+            packager|pkg)     tool="packager";;
+            backup|backupper) tool="backup";;
+            stack|info)       tool="stack";;
+            api)              tool="api";;
+        esac
     done
 
     case "$tool" in
-        wp-tools)
-            case "$prev" in
-                packager|pkg)
-                    COMPREPLY=( $(compgen -W "$packager_opts" -- "$cur") );;
-                backupper|backup)
-                    COMPREPLY=( $(compgen -W "$backupper_opts" -- "$cur") );;
-                wp-info|info)
-                    COMPREPLY=( $(compgen -W "$info_opts" -- "$cur") );;
-                api|api-context)
-                    COMPREPLY=( $(compgen -W "$info_opts" -- "$cur") );;
-                update)
-                    COMPREPLY=();;
-                *)
-                    COMPREPLY=( $(compgen -W "$tools" -- "$cur") );;
-            esac
-            ;;
-        wp-packager)
+        packager)
             if [[ "$cur" == -* ]]; then
                 COMPREPLY=( $(compgen -W "$packager_opts" -- "$cur") )
             elif command -v wp >/dev/null 2>&1; then
                 while read -r s; do
                     [[ -z "$s" ]] && continue
                     case " $used " in *" $s "*) ;; *) slugs="$slugs $s" ;; esac
-                done <<< "$( { wp plugin list --field=slug 2>/dev/null; wp theme list --field=slug 2>/dev/null; } | sort -u )"
+                done <<< "$( { wp plugin list --field=slug; wp theme list --field=slug; } 2>/dev/null | grep -vE '^Deprecated' | sort -u )"
                 COMPREPLY=( $(compgen -W "$slugs $packager_opts" -- "$cur") )
             else
                 COMPREPLY=( $(compgen -W "$packager_opts" -- "$cur") )
             fi
             ;;
-        wp-backup)
-            COMPREPLY=( $(compgen -W "$backupper_opts" -- "$cur") );;
-        wp-info|wp-api|wp-api-context)
+        backup)
+            # только сразу после `backup`: db / files / all / флаги
+            if [[ "$prev" == "backup" || "$prev" == "backupper" ]]; then
+                COMPREPLY=( $(compgen -W "$backup_opts" -- "$cur") )
+            fi
+            ;;
+        stack|api)
             COMPREPLY=( $(compgen -W "$info_opts" -- "$cur") );;
+        "")
+            if [[ "$prev" == "wp-tools" ]]; then
+                COMPREPLY=( $(compgen -W "$level1" -- "$cur") )
+            fi
+            ;;
     esac
 }
 
@@ -113,41 +127,37 @@ if [[ -n "$ZSH_VERSION" ]]; then
 fi
 
 if command -v complete >/dev/null 2>&1; then
-    complete -F _wp_tools_complete wp-tools wp-packager wp-backup wp-info wp-api wp-api-context
+    complete -F _wp_tools_complete wp-tools
 fi
+
 # ---------------------------------------------------------------------------
-# Справка: что делает каждая команда (без флагов и с флагами)
+# Справка: что делает каждая команда (печатается при загрузке)
 # ---------------------------------------------------------------------------
 
 _wt_help() {
     echo ""
     echo -e "\033[1;36mWP Tools\033[0m — что делает каждая команда:"
     echo ""
-    echo -e "  \033[1;37mwp-info\033[0m                 стек WP/PHP/БД, лимиты, статусы, плагины, темы"
-    echo -e "  \033[1;37mwp-info --help\033[0m          справка по wp-info"
+    echo -e "  \033[1;37mwp-tools packager <слаг>\033[0m   упаковать плагин/тему в ZIP"
+    echo -e "  \033[1;37mwp-tools packager --all\033[0m    упаковать все плагины и темы"
+    echo -e "  \033[1;37mwp-tools stack\033[0m             стек WP/PHP/БД, лимиты, плагины, темы"
+    echo -e "  \033[1;37mwp-tools api\033[0m               локаль, Bookly, таблицы, API-namespaces"
+    echo -e "  \033[1;37mwp-tools api <маска>\033[0m       схема таблиц, содержащих маску"
     echo ""
-    echo -e "  \033[1;37mwp-api-context\033[0m          локаль, Bookly, таблицы БД, API-namespaces"
-    echo -e "  \033[1;37mwp-api-context <маска>\033[0m  схема таблиц, содержащих маску"
+    echo -e "  \033[1;37mwp-tools backup\033[0m            бэкап файлов + БД (по умолчанию)"
+    echo -e "  \033[1;37mwp-tools backup db\033[0m         только дамп БД"
+    echo -e "  \033[1;37mwp-tools backup files\033[0m      только файлы сайта"
+    echo -e "  \033[1;37mwp-tools backup --list\033[0m     список существующих бэкапов"
     echo ""
-    echo -e "  \033[1;37mwp-backup\033[0m               бэкап файлов + БД в _backups/"
-    echo -e "  \033[1;37mwp-backup --list\033[0m        список существующих бэкапов"
+    echo -e "  \033[1;37mwp-tools list\033[0m              список инструментов"
+    echo -e "  \033[1;37mwp-tools update\033[0m            перекачать функции (обновление)"
     echo ""
-    echo -e "  \033[1;37mwp-packager <слаг>\033[0m      упаковать плагин/тему в ZIP"
-    echo -e "  \033[1;37mwp-packager --all\033[0m       упаковать все плагины и темы"
-    echo -e "  \033[1;37mwp-packager --list\033[0m      список установленных плагинов/тем"
-    echo ""
-    echo -e "  \033[1;37mwp-tools\033[0m                эта справка + список инструментов"
-    echo -e "  \033[1;37mwp-tools list\033[0m           список инструментов"
-    echo -e "  \033[1;37mwp-tools update\033[0m         перекачать функции из gist (обновление)"
-    echo ""
-    echo -e "  Таб: \033[38;5;244mwp-<TAB>\033[0m — команды, дальше флаги/слаги"
+    echo -e "  Таб: \033[38;5;244mwp-tools <TAB>\033[0m — команды, дальше флаги/слаги"
     echo -e "  Подробнее: \033[4;34mhttps://github.com/dsurkov/wp-tools/blob/main/README.md\033[0m"
     echo ""
 }
 
-wp-help() { _wt_help; }
-
-# Баннер печатаем только при обычной загрузке; wp-update ставит WP_TOOLS_QUIET=1
+# Баннер печатаем только при обычной загрузке; wp-tools update ставит WP_TOOLS_QUIET=1
 if [[ -z "${WP_TOOLS_QUIET:-}" ]]; then
     _wt_help
 fi

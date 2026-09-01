@@ -337,12 +337,15 @@ function tool_packager( array $args ): int {
 
 function backupper_usage(): void {
     wt_log( 'Usage:' );
-    wt_log( '  curl -sSL <url>/wp-tools.php | php -- backupper' );
+    wt_log( '  curl -sSL <url>/wp-tools.php | php -- backupper [db|files|all]' );
     wt_log( '  curl -sSL <url>/wp-tools.php | php -- backupper --list' );
     wt_log( '' );
     wt_log( 'Options:' );
-    wt_log( '  --list, -l    List existing backups in _backups/' );
-    wt_log( '  --help, -h    Show this help' );
+    wt_log( '  db          Backup database only' );
+    wt_log( '  files       Backup site files only' );
+    wt_log( '  all         Backup files and database (default)' );
+    wt_log( '  --list, -l  List existing backups in _backups/' );
+    wt_log( '  --help, -h  Show this help' );
     wt_log( '' );
     wt_log( 'Backs up site files plus a SQL dump of the database into a ZIP' );
     wt_log( 'archive inside _backups/, printing the download URL.' );
@@ -403,6 +406,7 @@ function tool_backupper( array $args ): int {
     global $wpdb;
 
     $list = false;
+    $mode = 'all';
 
     foreach ( $args as $arg ) {
         switch ( $arg ) {
@@ -414,6 +418,15 @@ function tool_backupper( array $args ): int {
             case '--list':
             case '-l':
                 $list = true;
+                break;
+            case 'db':
+                $mode = 'db';
+                break;
+            case 'files':
+                $mode = 'files';
+                break;
+            case 'all':
+                $mode = 'all';
                 break;
             default:
                 wt_err( "Unknown option: {$arg}" );
@@ -468,58 +481,76 @@ function tool_backupper( array $args ): int {
     $archive_file = $export_dir . '/' . $archive_name;
     $db_sql       = $export_dir . '/db-' . $stamp . '.sql';
 
-    $start = microtime( true );
+    $start    = microtime( true );
+    $do_db    = ( $mode === 'all' || $mode === 'db' );
+    $do_files = ( $mode === 'all' || $mode === 'files' );
+    $stages   = ( $do_db && $do_files ) ? 2 : 1;
+    $stage    = 0;
 
     wt_log( '' );
     wt_log( "=== BACKUP ({$folder_name}/) ===" );
     wt_log( '' );
 
-    wt_log( '[1/2] Database dump…' );
-    if ( ! backupper_db_dump( $wpdb, $db_sql, $start ) ) {
+    if ( $do_db ) {
+        $stage++;
+        wt_log( "[{$stage}/{$stages}] Database dump…" );
+        if ( ! backupper_db_dump( $wpdb, $db_sql, $start ) ) {
+            wt_progress( '[db]', 0, 0, $start, true );
+            wt_err( "Error: cannot write database dump '{$db_sql}'." );
+            return 1;
+        }
         wt_progress( '[db]', 0, 0, $start, true );
-        wt_err( "Error: cannot write database dump '{$db_sql}'." );
-        return 1;
+        wt_log( '[+] [db] ' . basename( $db_sql ) . ' — ' . wt_elapsed( $start ) );
     }
-    wt_progress( '[db]', 0, 0, $start, true );
-    wt_log( '[+] [db] ' . basename( $db_sql ) . ' — ' . wt_elapsed( $start ) );
 
     $zip = new ZipArchive();
     if ( $zip->open( $archive_file, ZipArchive::CREATE | ZipArchive::OVERWRITE ) !== true ) {
         wt_err( "Error: cannot create archive '{$archive_file}'." );
-        @unlink( $db_sql );
+        if ( $do_db ) {
+            @unlink( $db_sql );
+        }
         return 1;
     }
-    $zip->addFile( $db_sql, basename( $db_sql ) );
-
-    wt_log( '[2/2] Adding site files…' );
-    $total_files = wt_count_tree( $wp_root, 'wt_include_backup_file' );
-    $step        = max( 1, (int) ceil( $total_files / 100 ) );
-    $count       = 0;
-    $files = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator( $wp_root, FilesystemIterator::SKIP_DOTS ),
-        RecursiveIteratorIterator::LEAVES_ONLY
-    );
-    foreach ( $files as $file ) {
-        if ( $file->isDir() ) {
-            continue;
-        }
-        $file_path = $file->getRealPath();
-        $rel       = substr( $file_path, strlen( $wp_root ) + 1 );
-        if ( ! wt_include_backup_file( $rel ) ) {
-            continue;
-        }
-        $zip->addFile( $file_path, $rel );
-        $count++;
-        if ( $count % $step === 0 ) {
-            wt_progress( '[files]', $count, $total_files, $start );
-        }
+    if ( $do_db ) {
+        $zip->addFile( $db_sql, basename( $db_sql ) );
     }
-    wt_progress( '[files]', 0, 0, $start, true );
+
+    if ( $do_files ) {
+        $stage++;
+        wt_log( "[{$stage}/{$stages}] Adding site files…" );
+        $total_files = wt_count_tree( $wp_root, 'wt_include_backup_file' );
+        $step        = max( 1, (int) ceil( $total_files / 100 ) );
+        $count       = 0;
+        $files = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator( $wp_root, FilesystemIterator::SKIP_DOTS ),
+            RecursiveIteratorIterator::LEAVES_ONLY
+        );
+        foreach ( $files as $file ) {
+            if ( $file->isDir() ) {
+                continue;
+            }
+            $file_path = $file->getRealPath();
+            $rel       = substr( $file_path, strlen( $wp_root ) + 1 );
+            if ( ! wt_include_backup_file( $rel ) ) {
+                continue;
+            }
+            $zip->addFile( $file_path, $rel );
+            $count++;
+            if ( $count % $step === 0 ) {
+                wt_progress( '[files]', $count, $total_files, $start );
+            }
+        }
+        wt_progress( '[files]', 0, 0, $start, true );
+    }
     $zip->close();
-    @unlink( $db_sql );
+    if ( $do_db ) {
+        @unlink( $db_sql );
+    }
 
     $size = number_format( filesize( $archive_file ) / 1048576, 2, '.', '' );
-    wt_log( '[+] [files] ' . $count . ' files' );
+    if ( $do_files ) {
+        wt_log( '[+] [files] ' . $count . ' files' );
+    }
     wt_log( '[+] ' . $archive_name . ' (' . $size . ' MB)' );
     wt_log( '      -> ' . $base_url . '/' . $archive_name );
     wt_log( '' );
@@ -797,7 +828,7 @@ if ( $cmd === 'packager' || $cmd === 'pkg' ) {
 if ( $cmd === 'backupper' || $cmd === 'backup' ) {
     exit( tool_backupper( $rest ) );
 }
-if ( $cmd === 'wp-info' || $cmd === 'info' ) {
+if ( $cmd === 'wp-info' || $cmd === 'info' || $cmd === 'stack' ) {
     exit( tool_wp_info( $rest ) );
 }
 if ( $cmd === 'api' ) {
