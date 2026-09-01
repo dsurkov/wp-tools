@@ -481,6 +481,8 @@ function tool_backupper( array $args ): int {
     $archive_file = $export_dir . '/' . $archive_name;
     $db_sql       = $export_dir . '/db-' . $stamp . '.sql';
 
+    $domain = parse_url( site_url(), PHP_URL_HOST ) ?: $folder_name;
+
     $start    = microtime( true );
     $do_db    = ( $mode === 'all' || $mode === 'db' );
     $do_files = ( $mode === 'all' || $mode === 'files' );
@@ -488,7 +490,7 @@ function tool_backupper( array $args ): int {
     $stage    = 0;
 
     wt_log( '' );
-    wt_log( "=== BACKUP ({$folder_name}/) ===" );
+    wt_log( "=== BACKUP {$domain} ({$mode}) ===" );
     wt_log( '' );
 
     if ( $do_db ) {
