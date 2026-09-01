@@ -64,7 +64,7 @@ eval "$(curl -sSL https://gist.githubusercontent.com/dsurkov/efafe42477aa5711394
 |--------------------|--------------------------------|-------------------------|
 | `wp-tools`         | `wp-tools.php` (диспетчер)     | инструменты, флаги      |
 | `wp-packager`      | `packager …`                   | флаги + слаги (нужен WP-CLI) |
-| `wp-backupper`     | `backupper …`                  | `--list`, `--help`      |
+| `wp-backup`        | `backupper …`                  | `--list`, `--help`      |
 | `wp-info`          | `wp-info`                      | `--help`                |
 | `wp-api-context`   | `api …`                        | `--help`                |
 | `wp-api`           | алиас `wp-api-context`         | —                       |

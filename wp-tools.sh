@@ -14,7 +14,7 @@
 #
 #   wp-tools            — диспетчер: help / list / <tool> [args]
 #   wp-packager         — паковка плагинов и тем в ZIP (таб: флаги + слаги)
-#   wp-backupper        — бэкап файлов и БД (таб: --list, --help)
+#   wp-backup           — бэкап файлов и БД (таб: --list, --help)
 #   wp-info             — стек и конфиг WordPress (таб: --help)
 #   wp-api-context      — контекст REST API, схемы таблиц (алиас wp-api)
 #
@@ -32,13 +32,12 @@ _wt_run() {
 
 wp-tools()        { _wt_run "$@"; }
 wp-packager()     { _wt_run packager "$@"; }
-wp-backupper()    { _wt_run backupper "$@"; }
+wp-backup()       { _wt_run backupper "$@"; }
 wp-info()         { _wt_run wp-info "$@"; }
 wp-api-context()  { _wt_run api "$@"; }
 
-# Короткие алиасы
-wp-api()    { _wt_run api "$@"; }
-wp-backup() { _wt_run backupper "$@"; }
+# Короткий алиас
+wp-api() { _wt_run api "$@"; }
 # Обновить функции: перекачать загрузчик и переопределить всё в текущей сессии
 wp-update() {
     local sh
@@ -96,7 +95,7 @@ _wp_tools_complete() {
                 COMPREPLY=( $(compgen -W "$packager_opts" -- "$cur") )
             fi
             ;;
-        wp-backupper|wp-backup)
+        wp-backup)
             COMPREPLY=( $(compgen -W "$backupper_opts" -- "$cur") );;
         wp-info|wp-api|wp-api-context)
             COMPREPLY=( $(compgen -W "$info_opts" -- "$cur") );;
@@ -109,7 +108,7 @@ if [[ -n "$ZSH_VERSION" ]]; then
 fi
 
 if command -v complete >/dev/null 2>&1; then
-    complete -F _wp_tools_complete wp-tools wp-packager wp-backupper wp-backup wp-info wp-api wp-api-context
+    complete -F _wp_tools_complete wp-tools wp-packager wp-backup wp-info wp-api wp-api-context
 fi
 # ---------------------------------------------------------------------------
 # Справка: что делает каждая команда (без флагов и с флагами)
@@ -125,8 +124,8 @@ _wt_help() {
     echo -e "  \033[1;37mwp-api-context\033[0m          локаль, Bookly, таблицы БД, API-namespaces"
     echo -e "  \033[1;37mwp-api-context <маска>\033[0m  схема таблиц, содержащих маску"
     echo ""
-    echo -e "  \033[1;37mwp-backupper\033[0m            бэкап файлов + БД в _backups/"
-    echo -e "  \033[1;37mwp-backupper --list\033[0m     список существующих бэкапов"
+    echo -e "  \033[1;37mwp-backup\033[0m               бэкап файлов + БД в _backups/"
+    echo -e "  \033[1;37mwp-backup --list\033[0m        список существующих бэкапов"
     echo ""
     echo -e "  \033[1;37mwp-packager <слаг>\033[0m      упаковать плагин/тему в ZIP"
     echo -e "  \033[1;37mwp-packager --all\033[0m       упаковать все плагины и темы"

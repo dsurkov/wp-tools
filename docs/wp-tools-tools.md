@@ -6,7 +6,7 @@ WP Tools — набор CLI-инструментов для обслуживан
 PHP-файл-диспетчер `wp-tools.php` (подкоманды) + bash-загрузчик `wp-tools.sh`
 (функции в текущей сессии с таб-дополнением). Исполняется на сервере
 напрямую из stdin (`curl | php`), с диска (`php wp-tools.php <tool>`) или
-через функции (`wp-info`, `wp-backupper`, …).
+через функции (`wp-info`, `wp-backup`, …).
 
 ## 2. Стек
 
@@ -24,7 +24,7 @@ PHP-файл-диспетчер `wp-tools.php` (подкоманды) + bash-з�
 - **backupper**: ZIP всего корня WP в `_backups/` + дамп БД чисто-PHP: `SHOW TABLES` → `SHOW CREATE TABLE` → `SELECT *` с `esc_sql()`, INSERT-пакеты по таблицам, `SET NAMES`, `SET FOREIGN_KEY_CHECKS=0/1`; дамп пишется во временный `.sql` и кладётся в архив. Исключаются `_backups/`, `_packages/` и dot-каталоги (`.git`, `.svn`), но корневые dot-файлы (`.htaccess`) сохраняются.
 - **wp-info**: версии WP/PHP/БД (MySQL vs MariaDB), лимиты PHP из CLI-ini или web-ini (LiteSpeed/fpm/apache2, поиск по версии PHP), статусы Debug/Cache/Cron, локаль/TZ, префикс/charset, пути; активные плагины (`get_option('active_plugins')`), активная тема + parent (child-детект через `$theme->parent()`).
 - **api**: без аргумента — локаль/время, аддоны Bookly (`stripos($plugin,'bookly')`), таблицы БД (`SHOW TABLE STATUS`, префикс срезается), кастомные REST namespaces (ручной `new WP_REST_Server()` + `do_action('rest_api_init')`, фильтр по списку ядра). С аргументом — `SHOW TABLES LIKE %mask%` → для каждой таблицы `SHOW TABLE STATUS` + `SHOW COLUMNS` с выравниванием `str_pad`, подсветкой PRI/MUL.
-- **Загрузчик**: функции `wp-tools`, `wp-packager`, `wp-backupper`, `wp-info`, `wp-api-context` (+ алиасы `wp-api`, `wp-backup`) — тонкие обёртки `curl -sSL $WP_TOOLS_URL | php -- <tool> "$@"`. `WP_TOOLS_URL` переопределяется (например, `file://` для локальной разработки).
+- **Загрузчик**: функции `wp-tools`, `wp-packager`, `wp-backup`, `wp-info`, `wp-api-context` (+ алиас `wp-api`) — тонкие обёртки `curl -sSL $WP_TOOLS_URL | php -- <tool> "$@"`. `WP_TOOLS_URL` переопределяется (например, `file://` для локальной разработки).
 - **Таб-дополнение**: `complete -F _wp_tools_complete` для всех `wp-*`; контекстная логика: `wp-tools` → инструменты/флаги, `wp-packager` → флаги + слаги (из `wp plugin list`/`wp theme list`, только при наличии WP-CLI, уже введённые слаги фильтруются), остальные → флаги.
 - ANSI-цвета и спиннер «⏳ Загрузка...» + `\r\033[K` — перенесены из bash-функций пользователя (`wp eval`-сниппеты портированы нативно, `wp eval` убран).
 
