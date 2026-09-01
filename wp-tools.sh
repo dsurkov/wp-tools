@@ -102,3 +102,17 @@ fi
 if command -v complete >/dev/null 2>&1; then
     complete -F _wp_tools_complete wp-tools wp-packager wp-backupper wp-backup wp-info wp-api wp-api-context
 fi
+# ---------------------------------------------------------------------------
+# Краткая справка после загрузки
+# ---------------------------------------------------------------------------
+
+echo -e "\033[1;36mWP Tools\033[0m — функции загружены в сессию:"
+echo -e "  \033[1;37mwp-info\033[0m          стек и конфиг WordPress"
+echo -e "  \033[1;37mwp-api-context\033[0m   контекст REST API, схемы таблиц"
+echo -e "  \033[1;37mwp-backupper\033[0m     бэкап файлов и БД  (\033[38;5;244m--list\033[0m — список бэкапов)"
+echo -e "  \033[1;37mwp-packager\033[0m      паковка плагинов/тем (\033[38;5;244m--all\033[0m — все, --list\033[0m)"
+echo -e "  \033[1;37mwp-tools\033[0m         общая справка / список (\033[38;5;244mwp-tools list\033[0m)"
+echo -e "  Таб подсказывает аргументы: \033[38;5;244mwp-<TAB>\033[0m"
+echo ""
+echo -e "Подробнее: \033[4;34mhttps://github.com/dsurkov/wp-tools/blob/main/README.md\033[0m"
+echo ""
