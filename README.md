@@ -145,7 +145,7 @@ WordPress 6.6.1, PHP 8.5.10, DB MariaDB 11.4.2
 - Дамп БД чисто-PHP (без `mysqldump`): `SHOW CREATE TABLE` + `INSERT`, корректное экранирование, `SET FOREIGN_KEY_CHECKS` для InnoDB.
 - Исключаются служебные папки (`_backups/`, `_packages/`) и dot-каталоги (`.git`, `.svn`); корневые dot-файлы (`.htaccess`) сохраняются.
 - `backupper --list` показывает существующие бэкапы с размером и download-ссылками.
-- Имя архива `backup-<дата>-<время>.zip`, внутри — `db-<дата>-<время>.sql`.
+- Имя архива `backup-<домен>-<дата>-<время>-<тип>.zip` (тип: `all`/`db`/`files`), внутри — `db-<дата>-<время>.sql`.
 
 ### wp-info
 

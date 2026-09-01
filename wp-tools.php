@@ -116,9 +116,10 @@ const WT_TOOLS = [
     'wp-info'   => 'Show WordPress stack & configuration info',
     'api'       => 'Show REST API context & table schemas',
 ];
+const WT_VERSION = '0.3.0';
 
 function wt_usage(): void {
-    wt_log( 'WP Tools — WordPress admin toolkit' );
+    wt_log( 'WP Tools v' . WT_VERSION . ' — WordPress admin toolkit' );
     wt_log( '' );
     wt_log( 'Usage: curl -sSL <url>/wp-tools.php | php -- <tool> [args]' );
     wt_log( '' );
@@ -478,7 +479,7 @@ function tool_backupper( array $args ): int {
 
     $domain = preg_replace( '/[^A-Za-z0-9._-]/', '-', parse_url( site_url(), PHP_URL_HOST ) ?: $folder_name );
 
-    $stamp        = date( 'Ymd-His' );
+    $stamp        = date( 'Y-m-d-His' );
     $archive_name = 'backup-' . $domain . '-' . $stamp . '-' . $mode . '.zip';
     $archive_file = $export_dir . '/' . $archive_name;
     $db_sql       = $export_dir . '/db-' . $stamp . '.sql';
@@ -822,6 +823,10 @@ if ( in_array( $cmd, [ 'list', '--list', '-l' ], true ) ) {
     foreach ( WT_TOOLS as $name => $desc ) {
         wt_log( sprintf( '  %-12s %s', $name, $desc ) );
     }
+    exit( 0 );
+}
+if ( $cmd === 'version' || $cmd === '--version' || $cmd === '-V' ) {
+    wt_log( 'WP Tools v' . WT_VERSION );
     exit( 0 );
 }
 if ( $cmd === 'packager' || $cmd === 'pkg' ) {

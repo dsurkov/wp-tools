@@ -28,6 +28,9 @@
 # URL самого загрузчика (для wp-tools update).
 : "${WP_TOOLS_SH_URL:=https://gist.githubusercontent.com/dsurkov/efafe42477aa571139401628d2fafd5a/raw/wp-tools.sh}"
 
+# Версия загрузчика; обновляется вместе с wp-tools.php
+WT_VERSION="0.3.0"
+
 _wt_run() {
     curl -sSL "$WP_TOOLS_URL" | php -- "$@"
 }
@@ -37,12 +40,20 @@ wp-tools() {
     if [[ -n "$1" ]]; then shift; fi
 
     case "$cmd" in
+        version|--version|-V)
+            echo -e "WP Tools v${WT_VERSION} (сессия). Проверка свежести: \033[38;5;244mwp-tools update\033[0m"
+            ;;
         update)
-            # перекачать загрузчик и переопределить функции в текущей сессии
-            local sh
+            # сравнить версию с источником; если изменилась — переопределить функции
+            local sh new_ver old_ver="$WT_VERSION"
             sh="$(curl -sSL "$WP_TOOLS_SH_URL")" || { echo "wp-tools update: не удалось загрузить загрузчик" >&2; return 1; }
-            WP_TOOLS_QUIET=1 eval "$sh"
-            echo -e "\033[1;32mWP Tools\033[0m обновлены (\033[38;5;244mwp-tools help\033[0m — справка)."
+            new_ver="$(grep -m1 '^WT_VERSION=' <<< "$sh" | cut -d'"' -f2)"
+            if [[ -n "$new_ver" && "$new_ver" != "$old_ver" ]]; then
+                WP_TOOLS_QUIET=1 eval "$sh"
+                echo -e "\033[1;32mWP Tools\033[0m обновлены: v${old_ver} → v${new_ver}"
+            else
+                echo -e "WP Tools уже актуальна: v${old_ver}"
+            fi
             ;;
         list|--list|-l)       _wt_run list ;;
         help|--help|-h|-\?|'') _wt_help ;;
@@ -74,7 +85,7 @@ _wp_tools_complete() {
     tool=""
     COMPREPLY=()
 
-    local level1="packager stack api backup list help update --list -l --help -h -?"
+    local level1="packager stack api backup list help update version --list -l --help -h -?"
     local packager_opts="--list -l --all -a --help -h -?"
     local backup_opts="db files all --list -l --help -h -?"
     local info_opts="--help -h -?"
@@ -136,7 +147,7 @@ fi
 
 _wt_help() {
     echo ""
-    echo -e "\033[1;36mWP Tools\033[0m — что делает каждая команда:"
+    echo -e "\033[1;36mWP Tools v${WT_VERSION}\033[0m — что делает каждая команда:"
     echo ""
     echo -e "  \033[1;37mwp-tools packager <слаг>\033[0m   упаковать плагин/тему в ZIP"
     echo -e "  \033[1;37mwp-tools packager --all\033[0m    упаковать все плагины и темы"
@@ -150,7 +161,8 @@ _wt_help() {
     echo -e "  \033[1;37mwp-tools backup --list\033[0m     список существующих бэкапов"
     echo ""
     echo -e "  \033[1;37mwp-tools list\033[0m              список инструментов"
-    echo -e "  \033[1;37mwp-tools update\033[0m            перекачать функции (обновление)"
+    echo -e "  \033[1;37mwp-tools version\033[0m           текущая версия"
+    echo -e "  \033[1;37mwp-tools update\033[0m            обновить до свежей версии (показывает 0.x → 0.y)"
     echo ""
     echo -e "  Таб: \033[38;5;244mwp-tools <TAB>\033[0m — команды, дальше флаги/слаги"
     echo -e "  Подробнее: \033[4;34mhttps://github.com/dsurkov/wp-tools/blob/main/README.md\033[0m"
