@@ -30,7 +30,17 @@ _wt_run() {
     curl -sSL "$WP_TOOLS_URL" | php -- "$@"
 }
 
-wp-tools()        { _wt_run "$@"; }
+wp-tools() {
+    if [[ "$1" == "update" ]]; then
+        # перекачать загрузчик и переопределить функции в текущей сессии
+        local sh
+        sh="$(curl -sSL "$WP_TOOLS_SH_URL")" || { echo "wp-tools update: не удалось загрузить загрузчик" >&2; return 1; }
+        WP_TOOLS_QUIET=1 eval "$sh"
+        echo -e "\033[1;32mWP Tools\033[0m обновлены (\033[38;5;244mwp-help\033[0m — справка)."
+        return 0
+    fi
+    _wt_run "$@"
+}
 wp-packager()     { _wt_run packager "$@"; }
 wp-backup()       { _wt_run backupper "$@"; }
 wp-info()         { _wt_run wp-info "$@"; }
@@ -38,13 +48,6 @@ wp-api-context()  { _wt_run api "$@"; }
 
 # Короткий алиас
 wp-api() { _wt_run api "$@"; }
-# Обновить функции: перекачать загрузчик и переопределить всё в текущей сессии
-wp-update() {
-    local sh
-    sh="$(curl -sSL "$WP_TOOLS_SH_URL")" || { echo "wp-update: не удалось загрузить загрузчик" >&2; return 1; }
-    WP_TOOLS_QUIET=1 eval "$sh"
-    echo -e "\033[1;32mWP Tools\033[0m обновлены (\033[38;5;244mwp-help\033[0m — справка)."
-}
 
 # ---------------------------------------------------------------------------
 # Таб-дополнение: показывает, что можно ввести дальше
@@ -56,7 +59,7 @@ _wp_tools_complete() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
     tool="${COMP_WORDS[0]}"
 
-    local tools="packager backupper wp-info api list help"
+    local tools="packager backupper wp-info api list help update"
     local packager_opts="--list -l --all -a --help -h -?"
     local backupper_opts="--list -l --help -h -?"
     local info_opts="--help -h -?"
@@ -78,6 +81,8 @@ _wp_tools_complete() {
                     COMPREPLY=( $(compgen -W "$info_opts" -- "$cur") );;
                 api|api-context)
                     COMPREPLY=( $(compgen -W "$info_opts" -- "$cur") );;
+                update)
+                    COMPREPLY=();;
                 *)
                     COMPREPLY=( $(compgen -W "$tools" -- "$cur") );;
             esac
@@ -133,7 +138,7 @@ _wt_help() {
     echo ""
     echo -e "  \033[1;37mwp-tools\033[0m                эта справка + список инструментов"
     echo -e "  \033[1;37mwp-tools list\033[0m           список инструментов"
-    echo -e "  \033[1;37mwp-update\033[0m               перекачать функции из gist (обновление)"
+    echo -e "  \033[1;37mwp-tools update\033[0m         перекачать функции из gist (обновление)"
     echo ""
     echo -e "  Таб: \033[38;5;244mwp-<TAB>\033[0m — команды, дальше флаги/слаги"
     echo -e "  Подробнее: \033[4;34mhttps://github.com/dsurkov/wp-tools/blob/main/README.md\033[0m"
